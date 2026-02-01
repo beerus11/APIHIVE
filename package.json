@@ -1,0 +1,30 @@
+{
+  "name": "apihive",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/main/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsc -p tsconfig.main.json && concurrently \"vite\" \"tsc -w -p tsconfig.main.json\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "tsc -p tsconfig.main.json && vite build && cp src/main/preload.cjs dist/main/preload.cjs",
+    "preview": "vite preview",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.5",
+    "@types/react-dom": "^18.3.0",
+    "@types/node": "^20.14.9",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^9.0.1",
+    "electron": "^28.3.3",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.1",
+    "wait-on": "^8.0.1"
+  }
+}

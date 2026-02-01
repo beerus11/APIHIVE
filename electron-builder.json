@@ -1,0 +1,20 @@
+{
+  "appId": "com.apihive.desktop",
+  "productName": "APIHive",
+  "files": [
+    "dist/**"
+  ],
+  "directories": {
+    "buildResources": "public",
+    "output": "release"
+  },
+  "mac": {
+    "target": "dmg"
+  },
+  "win": {
+    "target": "nsis"
+  },
+  "linux": {
+    "target": "AppImage"
+  }
+}
