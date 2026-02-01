@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 
 type KeyValue = {
   id: string;
@@ -97,7 +97,11 @@ const buildUrl = (url: string, params: KeyValue[], vars: Record<string, string>)
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     .join("&");
 
-  return baseUrl.includes("?") ? `${baseUrl}&${query}` : `${baseUrl}?${query}`;
+  const hashIndex = baseUrl.indexOf("#");
+  const withoutHash = hashIndex >= 0 ? baseUrl.slice(0, hashIndex) : baseUrl;
+  const hash = hashIndex >= 0 ? baseUrl.slice(hashIndex) : "";
+  const separator = withoutHash.includes("?") ? "&" : "?";
+  return `${withoutHash}${separator}${query}${hash}`;
 };
 
 const buildHeaders = (
@@ -133,6 +137,30 @@ const statusTone = (status: number) => {
   if (status >= 300) return "status-warn";
   return "status-info";
 };
+
+const formatSize = (bytes: number): string => {
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+};
+
+const isValidHttpUrl = (s: string): boolean => {
+  const trimmed = s.trim();
+  if (!trimmed) return false;
+  try {
+    const u = new URL(trimmed);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const deepCloneRequest = (item: RequestDraft): RequestDraft => ({
+  ...item,
+  id: crypto.randomUUID(),
+  name: `${item.name} Copy`,
+  params: item.params.map((p) => ({ ...p, id: crypto.randomUUID() })),
+  headers: item.headers.map((h) => ({ ...h, id: crypto.randomUUID() }))
+});
 
 const App = () => {
   const [collections, setCollections] = useState<RequestDraft[]>([]);
@@ -179,11 +207,33 @@ const App = () => {
   );
 
   const handleSend = async () => {
+    if (!window.api?.request) {
+      setResponse({
+        status: 0,
+        statusText: "Error",
+        headers: {},
+        body: "API not available. Restart the app.",
+        duration: 0,
+        size: 0
+      });
+      return;
+    }
+    if (!isValidHttpUrl(resolvedUrl)) {
+      setResponse({
+        status: 0,
+        statusText: "Invalid URL",
+        headers: {},
+        body: "Enter a valid http or https URL.",
+        duration: 0,
+        size: 0
+      });
+      return;
+    }
     setSending(true);
     setResponse(null);
     try {
       const mergedHeaders = buildHeaders(request.headers, request.auth, variableMap);
-      let body = request.body;
+      const body = request.body;
       if (request.bodyType === "json" && body.trim().length > 0) {
         mergedHeaders["Content-Type"] = "application/json";
       }
@@ -244,12 +294,7 @@ const App = () => {
   };
 
   const duplicateRequest = (item: RequestDraft) => {
-    const cloned = {
-      ...item,
-      id: crypto.randomUUID(),
-      name: `${item.name} Copy`
-    };
-    setCollections((prev) => [cloned, ...prev]);
+    setCollections((prev) => [deepCloneRequest(item), ...prev]);
   };
 
   const removeRequest = (id: string) => {
@@ -264,10 +309,32 @@ const App = () => {
     setResponse(null);
   };
 
+  const loadFromHistory = (item: HistoryItem) => {
+    setRequest((prev) => ({
+      ...prev,
+      url: item.url,
+      method: item.method
+    }));
+    setResponse(null);
+  };
+
   const resetRequest = () => {
     setRequest(defaultRequest());
     setResponse(null);
   };
+
+  const handleSendRef = useRef(handleSend);
+  handleSendRef.current = handleSend;
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        handleSendRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const prettyBody = useMemo(() => {
     if (!response?.body) return "";
@@ -281,6 +348,9 @@ const App = () => {
   return (
     <div className="app">
       <header className="app-header">
+        <div className="logo-icon-wrap">
+          <img src={`${import.meta.env.BASE_URL}icon.png`} alt="APIHive" className="logo-icon" />
+        </div>
         <div className="logo">APIHive</div>
         <div className="spacer" />
         <button className="secondary" onClick={resetRequest}>
@@ -324,7 +394,13 @@ const App = () => {
             <div className="history-list">
               {history.length === 0 && <div className="empty">No runs yet.</div>}
               {history.map((item) => (
-                <div key={item.id} className="history-item">
+                <button
+                  key={item.id}
+                  type="button"
+                  className="history-item history-item-button"
+                  onClick={() => loadFromHistory(item)}
+                  title="Use this URL and method"
+                >
                   <div className="row">
                     <span className="pill">{item.method}</span>
                     <span className={`status ${statusTone(item.status)}`}>
@@ -334,10 +410,10 @@ const App = () => {
                   <div className="history-meta">
                     <div className="text">{item.name}</div>
                     <div className="muted">
-                      {item.duration}ms · {Math.round(item.size / 1024)}kb
+                      {item.duration}ms · {formatSize(item.size)}
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </section>
@@ -373,7 +449,7 @@ const App = () => {
                     setRequest({ ...request, url: event.target.value })
                   }
                 />
-                <button className="primary" onClick={handleSend} disabled={sending}>
+                <button className="primary" onClick={handleSend} disabled={sending} title="Send request (⌘ Enter)">
                   {sending ? "Sending..." : "Send"}
                 </button>
               </div>
@@ -470,12 +546,18 @@ const App = () => {
                         Username
                         <input
                           value={request.auth.username}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const a = request.auth;
+                            if (a.type !== "basic") return;
                             setRequest({
                               ...request,
-                              auth: { ...request.auth, username: event.target.value }
-                            })
-                          }
+                              auth: {
+                                type: "basic",
+                                username: event.target.value,
+                                password: a.password
+                              }
+                            });
+                          }}
                         />
                       </label>
                       <label>
@@ -483,12 +565,18 @@ const App = () => {
                         <input
                           type="password"
                           value={request.auth.password}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const a = request.auth;
+                            if (a.type !== "basic") return;
                             setRequest({
                               ...request,
-                              auth: { ...request.auth, password: event.target.value }
-                            })
-                          }
+                              auth: {
+                                type: "basic",
+                                username: a.username,
+                                password: event.target.value
+                              }
+                            });
+                          }}
                         />
                       </label>
                     </>
@@ -501,7 +589,7 @@ const App = () => {
                         onChange={(event) =>
                           setRequest({
                             ...request,
-                            auth: { ...request.auth, token: event.target.value }
+                            auth: { type: "bearer", token: event.target.value }
                           })
                         }
                       />
@@ -513,39 +601,57 @@ const App = () => {
                         Key
                         <input
                           value={request.auth.key}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const a = request.auth;
+                            if (a.type !== "apiKey") return;
                             setRequest({
                               ...request,
-                              auth: { ...request.auth, key: event.target.value }
-                            })
-                          }
+                              auth: {
+                                type: "apiKey",
+                                key: event.target.value,
+                                value: a.value,
+                                addTo: a.addTo
+                              }
+                            });
+                          }}
                         />
                       </label>
                       <label>
                         Value
                         <input
                           value={request.auth.value}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const a = request.auth;
+                            if (a.type !== "apiKey") return;
                             setRequest({
                               ...request,
-                              auth: { ...request.auth, value: event.target.value }
-                            })
-                          }
+                              auth: {
+                                type: "apiKey",
+                                key: a.key,
+                                value: event.target.value,
+                                addTo: a.addTo
+                              }
+                            });
+                          }}
                         />
                       </label>
                       <label>
                         Add to
                         <select
                           value={request.auth.addTo}
-                          onChange={(event) =>
+                          onChange={(event) => {
+                            const a = request.auth;
+                            if (a.type !== "apiKey") return;
                             setRequest({
                               ...request,
                               auth: {
-                                ...request.auth,
+                                type: "apiKey",
+                                key: a.key,
+                                value: a.value,
                                 addTo: event.target.value as "header" | "query"
                               }
-                            })
-                          }
+                            });
+                          }}
                         >
                           <option value="header">Header</option>
                           <option value="query">Query</option>
@@ -567,7 +673,7 @@ const App = () => {
                     {response.status || "--"} {response.statusText}
                   </span>
                   <span>{response.duration}ms</span>
-                  <span>{Math.round(response.size / 1024)}kb</span>
+                  <span>{formatSize(response.size)}</span>
                 </div>
               )}
             </div>
@@ -585,8 +691,8 @@ const App = () => {
                       {Object.entries(response.headers).length === 0 && (
                         <div className="empty">No headers</div>
                       )}
-                      {Object.entries(response.headers).map(([key, value]) => (
-                        <div key={key} className="header-row">
+                      {Object.entries(response.headers).map(([key, value], i) => (
+                        <div key={`${key}-${i}`} className="header-row">
                           <span>{key}</span>
                           <span>{value}</span>
                         </div>

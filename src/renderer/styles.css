@@ -33,7 +33,26 @@ button {
   padding: 10px 20px;
   background: #252526;
   border-bottom: 1px solid #3c3c3c;
-  gap: 12px;
+  gap: 10px;
+}
+
+.logo-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: #252526;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.logo-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  display: block;
 }
 
 .logo {
@@ -134,6 +153,16 @@ section h3 {
   background: #323233;
 }
 
+.history-item-button {
+  width: 100%;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  display: block;
+}
+
 .collection-item.active {
   border-color: #ff6c37;
   background: rgba(255, 108, 55, 0.08);
@@ -184,6 +213,9 @@ section h3 {
 .text {
   font-size: 13px;
   color: #d4d4d4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .main {

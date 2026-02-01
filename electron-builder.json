@@ -9,12 +9,20 @@
     "output": "release"
   },
   "mac": {
-    "target": "dmg"
+    "target": "dmg",
+    "icon": "public/icon.png",
+    "category": "public.app-category.developer-tools"
   },
   "win": {
-    "target": "nsis"
+    "target": "nsis",
+    "icon": "public/icon.png"
   },
   "linux": {
-    "target": "AppImage"
+    "target": "AppImage",
+    "icon": "public/icon.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true
   }
 }
