@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/icon.png" alt="APIHive" width="128" />
+</p>
+
 # APIHive
 
 **Open-source API testing & development platform** — a free, Postman-style desktop app for designing, testing, and debugging APIs. Built with Electron and React.
